@@ -54,6 +54,10 @@ class Settings(BaseSettings):
     CONFIDENCE_SCORE_THRESHOLD: float = 0.3
     CONFIDENCE_SELF_EVAL: bool = True
 
+    # ===== 意图识别后端：llm（默认，coref+intent 一次调用）或 local（本地分类器）=====
+    INTENT_BACKEND: str = "llm"
+    INTENT_CLF_PATH: str = "models/intent_clf"
+
     # ===== 可观测（Langfuse 云版；不填 key 则自动关闭）=====
     LANGFUSE_PUBLIC_KEY: str = ""
     LANGFUSE_SECRET_KEY: str = ""
