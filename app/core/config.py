@@ -38,6 +38,7 @@ class Settings(BaseSettings):
     EMBEDDING_DIM: int = 1024
     RERANK_BASE_URL: str = "https://api.siliconflow.cn/v1"
     RERANK_MODEL: str = "BAAI/bge-reranker-v2-m3"
+    RERANK_API_KEY: str = ""  # 留空则复用 EMBEDDING_API_KEY
 
     # ===== Milvus =====
     MILVUS_HOST: str = "127.0.0.1"
