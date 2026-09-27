@@ -39,7 +39,7 @@ MewHelp 是一条「用户消息进 → 回答出」的消息流水线：
 - [x] P4 稳健性：置信度闸门 + 转人工 + 双层上下文 + 中断恢复
 - [x] P5 可观测：Langfuse + 链路可视化
 - [x] P6 数据飞轮：问题池 + 运营工作台
-- [ ] P7 微调 + 前端 + 打磨
+- [x] P7 微调 + 前端 + 打磨
 
 > 详细设计与里程碑见 `docs/`（规划中）。
 
@@ -173,6 +173,39 @@ uv run python scripts/chat_demo.py
 
 - 工作台页面：`/static/ops.html`
 - 接口：`GET /ops/questions`、`POST /ops/questions/{id}/approve`、`POST /ops/questions/{id}/reject`
+
+## 意图识别：微调取舍
+
+意图识别支持两条后端，用 `INTENT_BACKEND` 切换：
+
+- `llm`（默认）：一次调用同时做指代消解 + 意图识别；
+- `local`：用微调的 RoBERTa 判意图（coref 仍走轻量 LLM），模型不存在则自动回退。
+
+在 352 条标注数据（LLM 扩增）上训了 `hfl/chinese-roberta-wwm-ext`（3 轮，CPU 约 1 分钟），72 条验证集对比：
+
+| 方案 | 准确率 | 平均延迟 |
+|------|-------:|--------:|
+| 本地 RoBERTa（CPU） | 0.857 | 216 ms/条 |
+| DeepSeek LLM | 0.871 | 542 ms/条 |
+
+> 结论：LLM 略准，但本地模型更快、更便宜、可离线。是否上微调，取决于对准确率的容忍度和成本/延迟要求。
+
+复现：
+
+```powershell
+uv run python scripts/gen_intent_data.py     # 造数据（种子 + LLM 扩增）
+uv run python scripts/train_intent_clf.py    # 训练（需 uv sync --group train）
+uv run python scripts/eval_intent_clf.py     # 对比评估
+```
+
+## 页面
+
+启动后：
+
+- `/` 或 `/static/index.html`：导航首页
+- `/static/chat.html`：聊天（SSE 流式）
+- `/static/ops.html`：运营工作台
+- `/static/trace.html`：调用链
 
 ## 目录结构
 

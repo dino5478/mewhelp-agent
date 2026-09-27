@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MewHelp 智能客服</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 720px; margin: 60px auto; padding: 0 16px; }
+    h1 { font-size: 24px; }
+    .muted { color: #6b7280; }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 24px; }
+    a.card { display: block; border: 1px solid #e5e7eb; border-radius: 10px; padding: 18px;
+             text-decoration: none; color: inherit; transition: .15s; }
+    a.card:hover { border-color: #2563eb; box-shadow: 0 2px 10px rgba(37,99,235,.12); }
+    .card h2 { margin: 0 0 6px; font-size: 16px; }
+    .card p { margin: 0; font-size: 13px; }
+    code { background: #f3f4f6; padding: 2px 6px; border-radius: 4px; }
+  </style>
+</head>
+<body>
+  <h1>MewHelp 智能客服</h1>
+  <p class="muted">电商 AI 智能客服：意图分流 + 混合检索 RAG + Workflow/Agent 编排 + 置信度兜底 + 数据飞轮。</p>
+
+  <div class="grid">
+    <a class="card" href="/static/chat.html">
+      <h2>聊天</h2>
+      <p class="muted">逐字流式对话；试试「我要退款，怎么处理」触发选单</p>
+    </a>
+    <a class="card" href="/static/ops.html">
+      <h2>运营工作台</h2>
+      <p class="muted">问题池审核，通过后回写知识库</p>
+    </a>
+    <a class="card" href="/static/trace.html">
+      <h2>调用链</h2>
+      <p class="muted">按 request_id 看每个节点的耗时</p>
+    </a>
+    <a class="card" href="/docs">
+      <h2>接口文档</h2>
+      <p class="muted">Swagger，可直接调接口</p>
+    </a>
+  </div>
+</body>
+</html>

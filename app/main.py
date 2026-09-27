@@ -4,6 +4,7 @@ import logging
 import time
 
 from fastapi import FastAPI, Request
+from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.core.config import settings
@@ -53,3 +54,8 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 @app.get("/health", tags=["system"])
 def health() -> dict:
     return {"status": "ok", "app": settings.APP_NAME, "version": settings.APP_VERSION}
+
+
+@app.get("/", include_in_schema=False)
+def index() -> RedirectResponse:
+    return RedirectResponse("/static/index.html")
