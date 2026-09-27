@@ -47,13 +47,15 @@ services:
 
   seaweedfs:
     image: chrislusf/seaweedfs:latest
-    command: mini -dir=/data -s3 -s3.port=8333
+    command: mini -dir=/data -s3 -s3.port=8333 -s3.config=/etc/seaweedfs/s3.json
     ports:
       - "8333:8333"     # S3 API
       - "9333:9333"     # master
       - "8888:8888"     # filer
     volumes:
       - seaweedfs_data:/data
+      # Milvus 用带签名的 S3 请求，必须给 SeaweedFS 配置匹配的凭证
+      - ./deploy/seaweedfs/s3.json:/etc/seaweedfs/s3.json:ro
     healthcheck:
       test: ["CMD", "wget", "-q", "-O", "-", "http://localhost:9333/cluster/status"]
       interval: 30s

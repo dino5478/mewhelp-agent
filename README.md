@@ -34,7 +34,7 @@ MewHelp 是一条「用户消息进 → 回答出」的消息流水线：
 
 - [x] P0 脚手架：环境编排 + 建表 + 种子数据
 - [x] P1 服务层：FastAPI 分层 + JWT 认证 + 订单接口 + SSE 骨架
-- [ ] P2 检索层：混合检索 + RRF + 重排 + 评测
+- [x] P2 检索层：混合检索 + RRF + 重排 + 评测
 - [ ] P3 编排层：LangGraph 状态图（意图分流 + 工具调用）
 - [ ] P4 稳健性：置信度闸门 + 转人工 + 上下文档 + 中断恢复
 - [ ] P5 可观测：Langfuse + 链路可视化
@@ -93,6 +93,30 @@ curl.exe -N -X POST "http://127.0.0.1:8000/chat/stream" `
   -H "Content-Type: application/json" `
   -H "Authorization: Bearer $token" `
   -d "{\"message\": \"运费是多少？\"}"
+```
+
+## RAG 检索
+
+流程：知识文档 → 按标题层级/表格切块 → 向量化(bge-m3) → 存 Milvus（稠密+BM25 稀疏）
+→ 查询时双路召回 → RRF 融合 → bge-reranker 重排 → Top-K。
+
+对照实验（`data/eval/retrieval_eval.jsonl`，28 条 query，7 篇知识文档 23 块）：
+
+| 方案 | Recall@5 | Recall@10 | MRR |
+|------|---------:|----------:|----:|
+| dense_only | 1.000 | 1.000 | 0.946 |
+| sparse_only | 0.964 | 0.964 | 0.876 |
+| hybrid (RRF) | 1.000 | 1.000 | 0.940 |
+| **hybrid + rerank** | **1.000** | **1.000** | **1.000** |
+
+> 结论：仅 BM25 会漏召回；稠密/混合保证召回上限；**重排显著提升 MRR**（最相关块排到第一）。
+
+复现：
+
+```powershell
+docker compose up -d                    # 起 MySQL/Redis/Milvus 栈
+uv run python scripts/build_index.py    # 建库
+uv run python scripts/eval_retrieval.py # 评测（需配置 EMBEDDING_API_KEY）
 ```
 
 ## 目录结构
