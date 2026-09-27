@@ -17,15 +17,25 @@ from app.services.graph.nodes import (
     generate_node,
     handoff_node,
     make_agent_node,
+    order_check_node,
     preprocess_node,
+    refund_answer_node,
     retrieve_node,
 )
 from app.services.graph.state import GraphState
 
 
 def _route_after_preprocess(state: GraphState) -> str:
-    # 规则类问题走 RAG；订单/售后/闲聊都交给 Agent（要调工具）
-    return "retrieve" if state.get("route") == "faq" else "agent"
+    route = state.get("route")
+    if route == "faq":
+        return "retrieve"      # 规则类问题查知识库
+    if route == "aftersale":
+        return "order_check"   # 售后要先确定订单
+    return "agent"             # 订单/闲聊交给 Agent
+
+
+def _route_after_order_check(state: GraphState) -> str:
+    return "refund_answer" if state.get("order_id") else "finalize"
 
 
 def _route_after_confidence(state: GraphState) -> str:
@@ -37,7 +47,7 @@ def _agent_should_continue(state: GraphState) -> str:
     return "tools" if getattr(last, "tool_calls", None) else "finalize"
 
 
-def build_graph(user_id: int):
+def build_graph(user_id: int, checkpointer=None):
     tool_list = tools.build_tools(user_id)
     llm_with_tools = llm.get_llm().bind_tools(tool_list)
 
@@ -47,18 +57,28 @@ def build_graph(user_id: int):
     builder.add_node("confidence", confidence_node)
     builder.add_node("generate", generate_node)
     builder.add_node("handoff", handoff_node)
+    builder.add_node("order_check", order_check_node)
+    builder.add_node("refund_answer", refund_answer_node)
     builder.add_node("agent", make_agent_node(llm_with_tools))
     builder.add_node("tools", ToolNode(tool_list))
     builder.add_node("finalize", finalize_node)
 
     builder.add_edge(START, "preprocess")
     builder.add_conditional_edges(
-        "preprocess", _route_after_preprocess, {"retrieve": "retrieve", "agent": "agent"}
+        "preprocess",
+        _route_after_preprocess,
+        {"retrieve": "retrieve", "order_check": "order_check", "agent": "agent"},
     )
     builder.add_edge("retrieve", "confidence")
     builder.add_conditional_edges(
         "confidence", _route_after_confidence, {"generate": "generate", "handoff": "handoff"}
     )
+    builder.add_conditional_edges(
+        "order_check",
+        _route_after_order_check,
+        {"refund_answer": "refund_answer", "finalize": "finalize"},
+    )
+    builder.add_edge("refund_answer", "finalize")
     builder.add_edge("generate", "finalize")
     builder.add_edge("handoff", "finalize")
     builder.add_conditional_edges(
@@ -66,4 +86,4 @@ def build_graph(user_id: int):
     )
     builder.add_edge("tools", "agent")
     builder.add_edge("finalize", END)
-    return builder.compile()
+    return builder.compile(checkpointer=checkpointer)

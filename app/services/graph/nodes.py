@@ -4,9 +4,12 @@
 """
 
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
+from langgraph.types import interrupt
 
 from app.core.config import settings
-from app.services import confidence, handoff, intent, llm, retrieval
+from app.core.exceptions import AppException
+from app.database import SessionLocal
+from app.services import confidence, handoff, intent, llm, order_service, retrieval
 from app.services.graph.state import GraphState
 
 _RAG_PROMPT = """你是电商平台的客服。请只根据下面提供的资料回答，资料里没有的就说\
@@ -72,6 +75,63 @@ def handoff_node(state: GraphState) -> dict:
         "answer": "这个问题我不太确定，已经帮你转人工客服，请稍等一下。",
         "need_human": True,
     }
+
+
+_REFUND_PROMPT = """你是电商售后客服。结合订单信息和售后政策，告诉用户这笔订单能不能退、怎么退。
+
+订单信息：{order}
+
+售后政策：
+{context}
+
+用户问题：{question}"""
+
+
+def order_check_node(state: GraphState) -> dict:
+    """售后入口：确认要处理哪笔订单。
+
+    名下多笔订单时暂停，让用户选；只有一笔就直接用；没有就直说。
+    暂停靠 interrupt，配合 checkpointer 才能恢复。
+    """
+    db = SessionLocal()
+    try:
+        orders = order_service.list_orders(db, state["user_id"])
+        options = [
+            {"id": o.id, "title": f"订单 {o.id}（{o.status}，{o.total_amount} 元）"}
+            for o in orders
+        ]
+    finally:
+        db.close()
+
+    if not options:
+        return {"answer": "你名下暂时没有可申请售后的订单。"}
+    if len(options) == 1:
+        return {"order_id": options[0]["id"]}
+
+    # 多笔订单：中断，等前端把用户选的那笔传回来
+    selection = interrupt({"type": "select_order", "orders": options})
+    return {"order_id": int(selection["order_id"])}
+
+
+def refund_answer_node(state: GraphState) -> dict:
+    """拿到订单后，结合订单信息和售后政策生成回答。"""
+    db = SessionLocal()
+    try:
+        order = order_service.get_order(db, state["user_id"], state["order_id"])
+        order_info = f"订单 {order.id}，状态 {order.status}，金额 {order.total_amount} 元"
+    except AppException as exc:
+        return {"answer": f"查订单时出错了：{exc.message}"}
+    finally:
+        db.close()
+
+    chunks = retrieval.hybrid_search(state["standalone_query"])
+    context = "\n\n".join(f"[{c.heading_path}] {c.text}" for c in chunks)
+    answer = llm.chat([
+        SystemMessage(content=_REFUND_PROMPT.format(
+            order=order_info, context=context, question=state["standalone_query"]
+        ))
+    ])
+    return {"answer": answer}
 
 
 def make_agent_node(llm_with_tools):

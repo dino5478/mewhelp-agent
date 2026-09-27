@@ -8,3 +8,8 @@ class ChatRequest(BaseModel):
     session_id: int | None = Field(
         default=None, description="会话 id；不传则新建一个会话"
     )
+
+
+class ResumeRequest(BaseModel):
+    session_id: int = Field(description="要恢复的会话 id")
+    order_id: int = Field(description="用户在选单里选中的订单号")

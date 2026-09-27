@@ -22,5 +22,6 @@ class GraphState(TypedDict, total=False):
     top_score: float           # 最高重排分
     confident: bool            # 置信度闸门结论
     confidence_reason: str
+    order_id: int              # 售后流程选定的订单
     need_human: bool
     answer: str

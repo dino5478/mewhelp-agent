@@ -14,6 +14,27 @@ def _chunk() -> RetrievedChunk:
 def test_route_after_preprocess() -> None:
     assert build._route_after_preprocess({"route": "faq"}) == "retrieve"
     assert build._route_after_preprocess({"route": "order"}) == "agent"
+    assert build._route_after_preprocess({"route": "aftersale"}) == "order_check"
+
+
+def test_route_after_order_check() -> None:
+    assert build._route_after_order_check({"order_id": 1}) == "refund_answer"
+    assert build._route_after_order_check({}) == "finalize"
+
+
+def test_order_check_without_orders(monkeypatch) -> None:
+    monkeypatch.setattr(nodes.order_service, "list_orders", lambda db, uid: [])
+    out = nodes.order_check_node({"user_id": 1})
+    assert "暂时" in out["answer"]
+
+
+def test_order_check_single_order(monkeypatch) -> None:
+    from types import SimpleNamespace
+
+    one = SimpleNamespace(id=7, status="paid", total_amount=10)
+    monkeypatch.setattr(nodes.order_service, "list_orders", lambda db, uid: [one])
+    out = nodes.order_check_node({"user_id": 1})
+    assert out["order_id"] == 7
 
 
 def test_route_after_confidence() -> None:

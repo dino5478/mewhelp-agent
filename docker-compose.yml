@@ -21,7 +21,8 @@ services:
       retries: 20
 
   redis:
-    image: redis:7
+    # 用 redis-stack：带 RediSearch 模块，LangGraph 的 Redis 检查点要用到
+    image: redis/redis-stack-server:latest
     ports:
       - "6380:6379"
     volumes:
