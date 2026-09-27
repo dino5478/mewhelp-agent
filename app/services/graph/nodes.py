@@ -63,13 +63,17 @@ def generate_node(state: GraphState) -> dict:
 
 def handoff_node(state: GraphState) -> dict:
     """证据不够，转人工：先落问题池（数据飞轮入口），再给用户话术。"""
+    reason = state.get("confidence_reason", "low_confidence")
+    # 自评没过和检索太弱分开记账，方便运营看是"没检索到"还是"模型判不可答"
+    entry = "self_eval_failed" if reason.startswith("self_eval") else "weak_retrieval"
     handoff.record_handoff(
         user_id=state.get("user_id"),
         session_id=state.get("session_id"),
         query=state["standalone_query"],
         intent=state.get("intent"),
-        reason=state.get("confidence_reason", "low_confidence"),
+        reason=reason,
         retrieved=state.get("retrieved"),
+        entry=entry,
     )
     return {
         "answer": "这个问题我不太确定，已经帮你转人工客服，请稍等一下。",

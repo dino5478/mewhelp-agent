@@ -26,3 +26,20 @@ def test_record_handoff_inserts_row() -> None:
         db.commit()
     finally:
         db.close()
+
+
+def test_same_question_dedups_and_counts() -> None:
+    query = f"重复问题 {__import__('random').randint(1000, 9999)}"
+    first = handoff.record_question(query=query, entry="weak_retrieval")
+    second = handoff.record_question(query=query, entry="weak_retrieval")
+    assert first == second
+
+    db = SessionLocal()
+    try:
+        rows = db.query(QuestionPool).filter(QuestionPool.query == query).all()
+        assert len(rows) == 1
+        assert rows[0].freq == 2
+        db.query(QuestionPool).filter(QuestionPool.query == query).delete()
+        db.commit()
+    finally:
+        db.close()
