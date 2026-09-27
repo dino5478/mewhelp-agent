@@ -46,3 +46,19 @@ def test_chat_stream_events(client: TestClient, make_user, monkeypatch) -> None:
 def test_chat_requires_token(client: TestClient) -> None:
     r = client.post("/chat/stream", json={"message": "hi"})
     assert r.status_code == 401
+
+
+class _FakeHandoffGraph:
+    async def astream(self, state, stream_mode=None):
+        yield ("messages", (AIMessageChunk(content="已转人工"), {"langgraph_node": "handoff"}))
+        yield ("values", {
+            "answer": "已转人工", "need_human": True, "confidence_reason": "self_eval_no"
+        })
+
+
+def test_chat_stream_emits_handoff(client: TestClient, make_user, monkeypatch) -> None:
+    monkeypatch.setattr(chat_service, "build_graph", lambda user_id: _FakeHandoffGraph())
+    headers, _, _ = make_user()
+    events, _ = _collect(client, headers, "知识库没有的问题")
+    assert "handoff" in events
+    assert events[-1] == "done"

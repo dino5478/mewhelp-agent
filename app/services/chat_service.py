@@ -91,4 +91,6 @@ async def stream_reply(
 
     answer = final_state.get("answer") or streamed or "抱歉，我没能处理这个问题。"
     message_id = _save_assistant_message(session_id, answer)
+    if final_state.get("need_human"):
+        yield _sse("handoff", {"reason": final_state.get("confidence_reason", "")})
     yield _sse("done", {"session_id": session_id, "message_id": message_id})

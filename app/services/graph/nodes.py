@@ -6,7 +6,7 @@
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 
 from app.core.config import settings
-from app.services import confidence, intent, llm, retrieval
+from app.services import confidence, handoff, intent, llm, retrieval
 from app.services.graph.state import GraphState
 
 _RAG_PROMPT = """你是电商平台的客服。请只根据下面提供的资料回答，资料里没有的就说\
@@ -59,7 +59,15 @@ def generate_node(state: GraphState) -> dict:
 
 
 def handoff_node(state: GraphState) -> dict:
-    """证据不够，转人工（问题池落库在 P4.2 接上）。"""
+    """证据不够，转人工：先落问题池（数据飞轮入口），再给用户话术。"""
+    handoff.record_handoff(
+        user_id=state.get("user_id"),
+        session_id=state.get("session_id"),
+        query=state["standalone_query"],
+        intent=state.get("intent"),
+        reason=state.get("confidence_reason", "low_confidence"),
+        retrieved=state.get("retrieved"),
+    )
     return {
         "answer": "这个问题我不太确定，已经帮你转人工客服，请稍等一下。",
         "need_human": True,

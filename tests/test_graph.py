@@ -62,10 +62,16 @@ def test_generate_node(monkeypatch) -> None:
     assert out["answer"] == "满 99 元包邮。"
 
 
-def test_handoff_node() -> None:
-    out = nodes.handoff_node({"standalone_query": "答不上来的问题"})
+def test_handoff_node_records_and_answers(monkeypatch) -> None:
+    recorded = {}
+    monkeypatch.setattr(nodes.handoff, "record_handoff", lambda **kw: recorded.update(kw))
+    out = nodes.handoff_node({
+        "standalone_query": "答不上来", "user_id": 1, "session_id": 2,
+        "intent": "其他", "confidence_reason": "self_eval_no", "retrieved": [],
+    })
     assert out["need_human"] is True
     assert "转人工" in out["answer"]
+    assert recorded["query"] == "答不上来"
 
 
 def test_finalize_prefers_answer() -> None:
