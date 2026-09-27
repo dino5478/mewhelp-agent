@@ -31,6 +31,10 @@ volumes/
 models/
 outputs/
 
+# ===== 临时日志 / 进程文件 =====
+*.log
+*.pid
+
 # ===== IDE =====
 .idea/
 .vscode/
