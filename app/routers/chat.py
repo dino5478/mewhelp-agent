@@ -20,10 +20,12 @@ def chat_stream(
     db: Session = Depends(get_db),
 ) -> StreamingResponse:
     session = chat_service.get_or_create_session(db, current_user.id, payload.session_id)
+    # 先取历史（不含本轮），再写入本轮用户消息
+    history = chat_service.load_history(db, session.id)
     chat_service.append_message(db, session.id, "user", payload.message)
 
     return StreamingResponse(
-        chat_service.stream_reply(session.id, payload.message),
+        chat_service.stream_reply(session.id, current_user.id, payload.message, history),
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",       # 不缓存
