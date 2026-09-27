@@ -27,6 +27,10 @@ htmlcov/
 data/uploads/
 volumes/
 
+# ===== 微调产物（模型权重太大，不入库）=====
+models/
+outputs/
+
 # ===== IDE =====
 .idea/
 .vscode/
