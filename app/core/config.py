@@ -8,7 +8,7 @@ class Settings(BaseSettings):
 
     # ===== 应用 =====
     APP_NAME: str = "mewhelp-agent"
-    APP_VERSION: str = "0.1.0"
+    APP_VERSION: str = "0.2.0"
     DEBUG: bool = True
 
     # ===== 数据库 =====

@@ -55,3 +55,8 @@ class OrderItem(Base):
 
     order: Mapped["Order"] = relationship(back_populates="items")
     product: Mapped["Product"] = relationship()
+
+    @property
+    def product_title(self) -> str | None:
+        """方便响应序列化：直接取关联商品标题。"""
+        return self.product.title if self.product else None

@@ -33,7 +33,7 @@ MewHelp 是一条「用户消息进 → 回答出」的消息流水线：
 ## 功能进展
 
 - [x] P0 脚手架：环境编排 + 建表 + 种子数据
-- [ ] P1 服务层：FastAPI 分层 + 订单接口 + SSE 骨架
+- [x] P1 服务层：FastAPI 分层 + JWT 认证 + 订单接口 + SSE 骨架
 - [ ] P2 检索层：混合检索 + RRF + 重排 + 评测
 - [ ] P3 编排层：LangGraph 状态图（意图分流 + 工具调用）
 - [ ] P4 稳健性：置信度闸门 + 转人工 + 上下文档 + 中断恢复
@@ -67,7 +67,33 @@ uv run uvicorn app.main:app --reload
 
 打开接口文档：http://127.0.0.1:8000/docs ，健康检查：http://127.0.0.1:8000/health
 
+极简聊天页（验证 SSE 逐字效果）：http://127.0.0.1:8000/static/chat.html （默认账号 alice / alice123）
+
 > 说明：`.env` 含密钥，已被 `.gitignore` 忽略，**不要提交**。
+
+## 接口一览
+
+| 方法 | 路径 | 说明 | 认证 |
+|------|------|------|------|
+| GET | `/health` | 健康检查 | 否 |
+| POST | `/users/register` | 注册 | 否 |
+| POST | `/users/login` | 登录（表单），返回 JWT | 否 |
+| GET | `/users/me` | 当前登录用户 | 是 |
+| GET | `/orders` | 当前用户的订单列表 | 是 |
+| GET | `/orders/{id}` | 订单详情（归属校验，非本人 403） | 是 |
+| POST | `/chat/stream` | SSE 流式对话（P1 为骨架回复） | 是 |
+
+### SSE 调用示例
+
+```powershell
+$token = (Invoke-RestMethod -Method Post "http://127.0.0.1:8000/users/login" `
+  -Body @{username="alice"; password="alice123"}).access_token
+
+curl.exe -N -X POST "http://127.0.0.1:8000/chat/stream" `
+  -H "Content-Type: application/json" `
+  -H "Authorization: Bearer $token" `
+  -d "{\"message\": \"运费是多少？\"}"
+```
 
 ## 目录结构
 
