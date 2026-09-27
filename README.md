@@ -27,8 +27,8 @@ MewHelp 是一条「用户消息进 → 回答出」的消息流水线：
 | 向量库 | Milvus（稠密 + BM25 稀疏） |
 | 编排 | LangGraph |
 | 数据库 | MySQL 8 + Redis 7 |
-| 可观测 | Langfuse（规划中） |
-| 微调 | RoBERTa-wwm-ext 意图分类器（规划中） |
+| 可观测 | Langfuse（云版，未配置则本地降级） |
+| 微调 | RoBERTa-wwm-ext 意图分类器（可切换） |
 
 ## 功能进展
 
@@ -41,33 +41,34 @@ MewHelp 是一条「用户消息进 → 回答出」的消息流水线：
 - [x] P6 数据飞轮：问题池 + 运营工作台
 - [x] P7 微调 + 前端 + 打磨
 
-> 详细设计与里程碑见 `docs/`（规划中）。
+> 复刻自小林coding《MewHelp 智能客服项目》的公开架构思路，具体实现为独立设计。
 
 ## 本地开发
 
 前置：Docker Desktop、[uv](https://docs.astral.sh/uv/)（`pip install uv`）。
 
 ```powershell
-# 1. 起基础设施（MySQL 3308 / Redis 6380；Milvus 栈 P2 再起）
-docker compose up -d mysql redis
+# 1. 起基础设施（MySQL 3308 / Redis 6380 / Milvus 19530）
+docker compose up -d
 
 # 2. 装依赖（自动创建 .venv，使用 Python 3.12）
 uv sync
 
-# 3. 配置环境变量（填入模型 / 嵌入的 Key）
+# 3. 配置环境变量（填入大模型 / 嵌入的 Key）
 copy .env.example .env
 
-# 4. 建表 + 灌种子数据
+# 4. 建表 + 灌种子数据 + 建检索索引
 uv run alembic upgrade head
 uv run python scripts/seed_data.py
+uv run python scripts/build_index.py
 
 # 5. 启动服务
 uv run uvicorn app.main:app --reload
 ```
 
-打开接口文档：http://127.0.0.1:8000/docs ，健康检查：http://127.0.0.1:8000/health
+打开导航首页：http://127.0.0.1:8000/ ，接口文档：http://127.0.0.1:8000/docs ，健康检查：http://127.0.0.1:8000/health
 
-极简聊天页（验证 SSE 逐字效果）：http://127.0.0.1:8000/static/chat.html （默认账号 alice / alice123）
+默认账号：`alice` / `alice123`
 
 > 说明：`.env` 含密钥，已被 `.gitignore` 忽略，**不要提交**。
 
@@ -211,15 +212,30 @@ uv run python scripts/eval_intent_clf.py     # 对比评估
 
 ```
 app/
-├── main.py            # FastAPI 入口（当前仅 /health）
+├── main.py            # FastAPI 入口：中间件、异常、路由、静态页
 ├── database.py        # 引擎 + 会话 + Base + get_db
-├── core/config.py     # 配置（pydantic-settings，读 .env）
-└── models/            # ORM 模型（用户/商品/订单/知识/会话/问题池/反馈/审计）
+├── deps.py            # get_current_user
+├── core/              # config / security / exceptions / redis
+├── models/            # ORM：用户/商品/订单/知识/会话/问题池/反馈/审计
+├── schemas/           # Pydantic 传输模型
+├── routers/           # users / orders / chat / trace / feedback / ops
+└── services/
+    ├── intent.py      # 指代消解 + 意图识别（可切本地分类器）
+    ├── intent_clf.py  # 微调 RoBERTa 分类器封装
+    ├── chunking.py    # 按标题/表格切块
+    ├── embedding.py / reranker.py
+    ├── retrieval.py   # 双路召回 + RRF + 重排
+    ├── milvus_store.py / knowledge.py
+    ├── graph/         # state / nodes / build / checkpoint
+    ├── confidence.py / handoff.py / context.py / observability.py
+    ├── tools.py / order_service.py / chat_service.py
+    └── feedback.py / ops.py
 migrations/            # Alembic 迁移
-scripts/seed_data.py   # 种子数据
-data/knowledge/        # 示例知识库文档（配送/退换货/支付）
-tests/                 # pytest
-docker-compose.yml     # MySQL + Redis + Milvus 栈
+scripts/               # seed / build_index / eval_retrieval / gen+train+eval intent / demo
+static/                # index / chat / ops / trace 页面
+data/                  # 知识库文档 / 评测集 / 微调数据
+tests/                 # pytest（69 个用例，外部依赖多为 mock）
+docker-compose.yml     # MySQL + Redis(redis-stack) + Milvus(etcd + SeaweedFS)
 ```
 
 ## 说明
