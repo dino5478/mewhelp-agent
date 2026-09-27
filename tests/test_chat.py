@@ -11,8 +11,8 @@ class _FakeGraph:
 
     async def astream(self, state, stream_mode=None):
         yield ("messages", (AIMessageChunk(content="{意图JSON}"), {"langgraph_node": "preprocess"}))
-        yield ("messages", (AIMessageChunk(content="满 99"), {"langgraph_node": "rag"}))
-        yield ("messages", (AIMessageChunk(content=" 元包邮"), {"langgraph_node": "rag"}))
+        yield ("messages", (AIMessageChunk(content="满 99"), {"langgraph_node": "generate"}))
+        yield ("messages", (AIMessageChunk(content=" 元包邮"), {"langgraph_node": "generate"}))
         yield ("values", {"answer": "满 99 元包邮"})
 
 

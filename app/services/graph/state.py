@@ -11,6 +11,7 @@ class GraphState(TypedDict, total=False):
     messages: Annotated[list[BaseMessage], add_messages]
     query: str                 # 用户原始输入
     history: list[dict]        # 最近几轮对话，指代消解用
+    summary: str               # 更早对话的滚动摘要
     user_id: int
     session_id: int
     standalone_query: str      # 补全后的独立问题

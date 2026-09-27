@@ -8,7 +8,7 @@ from app.database import get_db
 from app.deps import get_current_user
 from app.models import User
 from app.schemas.chat import ChatRequest
-from app.services import chat_service
+from app.services import chat_service, context
 
 router = APIRouter(prefix="/chat", tags=["chat"])
 
@@ -20,12 +20,14 @@ def chat_stream(
     db: Session = Depends(get_db),
 ) -> StreamingResponse:
     session = chat_service.get_or_create_session(db, current_user.id, payload.session_id)
-    # 先取历史（不含本轮），再写入本轮用户消息
-    history = chat_service.load_history(db, session.id)
+    # 双层上下文：近期原文 + 更早的摘要；先取再写本轮用户消息
+    ctx = context.get_context(db, session)
     chat_service.append_message(db, session.id, "user", payload.message)
 
     return StreamingResponse(
-        chat_service.stream_reply(session.id, current_user.id, payload.message, history),
+        chat_service.stream_reply(
+            session.id, current_user.id, payload.message, ctx["recent"], ctx["summary"]
+        ),
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",       # 不缓存

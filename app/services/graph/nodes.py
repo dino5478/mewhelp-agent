@@ -20,7 +20,7 @@ _RAG_PROMPT = """你是电商平台的客服。请只根据下面提供的资料
 
 def preprocess_node(state: GraphState) -> dict:
     """指代消解 + 意图识别，并把补全后的问题作为本轮对话起点。"""
-    result = intent.analyze(state["query"], state.get("history"))
+    result = intent.analyze(state["query"], state.get("history"), state.get("summary", ""))
     return {
         "standalone_query": result["standalone_query"],
         "intent": result["intent"],

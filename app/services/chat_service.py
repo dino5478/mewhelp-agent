@@ -8,7 +8,11 @@ from sqlalchemy.orm import Session
 from app.core.exceptions import ForbiddenError, NotFoundError
 from app.database import SessionLocal
 from app.models import ChatSession, Message
+from app.services import context
 from app.services.graph.build import build_graph
+
+# 只有这两个节点的输出给用户看；retrieve/confidence 这些别透出去
+STREAM_NODES = {"generate", "agent"}
 
 
 def _sse(event: str, data: dict) -> str:
@@ -39,18 +43,6 @@ def append_message(db: Session, session_id: int, role: str, content: str) -> Mes
     return msg
 
 
-def load_history(db: Session, session_id: int, limit: int = 6) -> list[dict]:
-    """取最近几轮对话，供指代消解用。"""
-    rows = (
-        db.query(Message)
-        .filter(Message.session_id == session_id, Message.role.in_(["user", "assistant"]))
-        .order_by(Message.id.desc())
-        .limit(limit)
-        .all()
-    )
-    return [{"role": m.role, "content": m.content} for m in reversed(rows)]
-
-
 def _save_assistant_message(session_id: int, content: str) -> int:
     db = SessionLocal()
     try:
@@ -63,12 +55,28 @@ def _save_assistant_message(session_id: int, content: str) -> int:
         db.close()
 
 
+def _summarize(session_id: int) -> None:
+    db = SessionLocal()
+    try:
+        session = db.get(ChatSession, session_id)
+        if session is not None:
+            context.summarize_if_needed(db, session)
+    finally:
+        db.close()
+
+
 async def stream_reply(
-    session_id: int, user_id: int, query: str, history: list[dict]
+    session_id: int, user_id: int, query: str, history: list[dict], summary: str = ""
 ) -> AsyncGenerator[str, None]:
     """调用状态图，把模型 token 逐条以 SSE 推给前端，最后落库并 done。"""
     graph = build_graph(user_id)
-    state = {"query": query, "user_id": user_id, "session_id": session_id, "history": history}
+    state = {
+        "query": query,
+        "user_id": user_id,
+        "session_id": session_id,
+        "history": history,
+        "summary": summary,
+    }
 
     streamed = ""
     final_state: dict = {}
@@ -76,8 +84,7 @@ async def stream_reply(
         async for mode, data in graph.astream(state, stream_mode=["messages", "values"]):
             if mode == "messages":
                 chunk, meta = data
-                # 只放行真正给用户看的节点，别把意图识别的 JSON 也吐出去
-                if meta.get("langgraph_node") not in {"rag", "agent"}:
+                if meta.get("langgraph_node") not in STREAM_NODES:
                     continue
                 text = chunk.content if isinstance(chunk.content, str) else ""
                 if text:
@@ -91,6 +98,7 @@ async def stream_reply(
 
     answer = final_state.get("answer") or streamed or "抱歉，我没能处理这个问题。"
     message_id = _save_assistant_message(session_id, answer)
+    _summarize(session_id)
     if final_state.get("need_human"):
         yield _sse("handoff", {"reason": final_state.get("confidence_reason", "")})
     yield _sse("done", {"session_id": session_id, "message_id": message_id})

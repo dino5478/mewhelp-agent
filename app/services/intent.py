@@ -48,9 +48,14 @@ def _format_history(history: list[dict]) -> str:
     return "\n".join(lines)
 
 
-def analyze(message: str, history: list[dict] | None = None) -> dict:
+def analyze(message: str, history: list[dict] | None = None, summary: str = "") -> dict:
     """返回 {standalone_query, intent, route}。intent 不认识时归到"其他"。"""
-    user_prompt = f"最近对话：\n{_format_history(history or [])}\n\n用户当前句：{message}"
+    parts = []
+    if summary:
+        parts.append(f"更早对话摘要：{summary}")
+    parts.append(f"最近对话：\n{_format_history(history or [])}")
+    parts.append(f"用户当前句：{message}")
+    user_prompt = "\n\n".join(parts)
 
     data = llm.chat_json(
         [SystemMessage(content=_SYSTEM_PROMPT), HumanMessage(content=user_prompt)]

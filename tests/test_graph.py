@@ -32,7 +32,7 @@ def test_agent_should_continue() -> None:
 def test_preprocess_node(monkeypatch) -> None:
     monkeypatch.setattr(
         nodes.intent, "analyze",
-        lambda msg, history=None: {
+        lambda msg, history=None, summary="": {
             "standalone_query": "运费是多少", "intent": "运费咨询", "route": "faq"
         },
     )
