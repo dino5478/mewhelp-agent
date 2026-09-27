@@ -37,7 +37,7 @@ MewHelp 是一条「用户消息进 → 回答出」的消息流水线：
 - [x] P2 检索层：混合检索 + RRF + 重排 + 评测
 - [x] P3 编排层：LangGraph 状态图（意图分流 + 工具调用）
 - [x] P4 稳健性：置信度闸门 + 转人工 + 双层上下文 + 中断恢复
-- [ ] P5 可观测：Langfuse + 链路可视化
+- [x] P5 可观测：Langfuse + 链路可视化
 - [ ] P6 数据飞轮：问题池 + 运营工作台
 - [ ] P7 微调 + 前端 + 打磨
 
@@ -83,6 +83,8 @@ uv run uvicorn app.main:app --reload
 | GET | `/orders/{id}` | 订单详情（归属校验，非本人 403） | 是 |
 | POST | `/chat/stream` | SSE 流式对话（意图分流 + RAG/Agent） | 是 |
 | POST | `/chat/resume` | 中断后带选中的订单继续 | 是 |
+| GET | `/trace/recent` | 最近的调用链概览 | 否 |
+| GET | `/trace/{id}` | 某条调用链的节点耗时明细 | 否 |
 
 ### SSE 调用示例
 
@@ -148,6 +150,13 @@ uv run python scripts/chat_demo.py
 - **转人工**：答不准的问题连同检索快照写入 `question_pool`（数据飞轮入口），并给用户"已转人工"话术。
 - **双层上下文**：近 6 轮保原文，更早的滚动压缩进 `chat_sessions.summary`，长对话不丢信息也不爆 token。
 - **中断恢复**：售后流程若用户名下多笔订单，图会 `interrupt` 暂停并返回 `need_order_selection`；前端选单后调 `/chat/resume` 从断点继续。状态用 Redis checkpointer 持久化（需 redis-stack，带 RediSearch 模块）。
+
+## 可观测
+
+每次请求生成 `request_id`，按节点把耗时写进 `audit_logs`，本地即可查看调用链：
+
+- 页面：`/static/trace.html`（也可直接调 `GET /trace/recent`、`GET /trace/{request_id}`）
+- 云端：配置 `LANGFUSE_*` 后，会通过回调把 prompt/耗时/调用树上报 Langfuse（不配则自动降级为本地模式）
 
 ## 目录结构
 

@@ -6,6 +6,7 @@
 """
 
 import logging
+import os
 import uuid
 
 from sqlalchemy.orm import Session
@@ -60,6 +61,11 @@ def get_langfuse_handler():
     if not (settings.LANGFUSE_PUBLIC_KEY and settings.LANGFUSE_SECRET_KEY):
         return None
     try:
+        # Langfuse SDK 从进程环境变量读配置，而我们存在 .env 里，得先补一刀
+        os.environ.setdefault("LANGFUSE_PUBLIC_KEY", settings.LANGFUSE_PUBLIC_KEY)
+        os.environ.setdefault("LANGFUSE_SECRET_KEY", settings.LANGFUSE_SECRET_KEY)
+        os.environ.setdefault("LANGFUSE_HOST", settings.LANGFUSE_HOST)
+
         from langfuse.langchain import CallbackHandler
 
         _langfuse_handler = CallbackHandler()
