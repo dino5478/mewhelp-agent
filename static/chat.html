@@ -3,22 +3,23 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>MewHelp 智能客服 · P1 骨架</title>
+  <title>MewHelp 智能客服</title>
   <style>
     body { font-family: system-ui, sans-serif; max-width: 760px; margin: 40px auto; padding: 0 16px; }
     h1 { font-size: 20px; }
-    .row { margin: 12px 0; display: flex; gap: 8px; align-items: center; }
+    .row { margin: 12px 0; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
     input { padding: 8px; border: 1px solid #ccc; border-radius: 6px; }
     button { padding: 8px 14px; border: 0; border-radius: 6px; background: #2563eb; color: #fff; cursor: pointer; }
     button:hover { background: #1d4ed8; }
+    button.choice { background: #059669; }
     #output { background: #f6f8fa; border: 1px solid #e5e7eb; border-radius: 8px;
               padding: 16px; min-height: 160px; white-space: pre-wrap; }
     #status { color: #16a34a; }
   </style>
 </head>
 <body>
-  <h1>MewHelp 智能客服 · P1 SSE 骨架</h1>
-  <p>先登录，再发送消息，观察回复逐字出现。</p>
+  <h1>MewHelp 智能客服</h1>
+  <p>先登录，再发送消息。试试「我要退款，怎么处理」触发选单。</p>
 
   <div class="row">
     <input id="username" value="alice" placeholder="用户名">
@@ -32,10 +33,12 @@
     <button onclick="send()">发送</button>
   </div>
 
+  <div id="choices" class="row"></div>
   <pre id="output"></pre>
 
   <script>
     let token = "";
+    let sessionId = null;
 
     async function login() {
       const body = new URLSearchParams();
@@ -47,46 +50,76 @@
       document.getElementById("status").textContent = "已登录 ✓";
     }
 
-    async function send() {
-      const status = document.getElementById("status");
-      if (!token) { status.textContent = "请先登录"; return; }
+    // 解析一条 SSE 事件，回调给具体处理器
+    function handleEvent(ev, data) {
       const output = document.getElementById("output");
-      output.textContent = "";
+      if (ev === "token") output.textContent += JSON.parse(data).text;
+      else if (ev === "handoff") output.textContent += "\n\n[已转人工]";
+      else if (ev === "need_order_selection") renderChoices(JSON.parse(data));
+      else if (ev === "error") output.textContent += "\n[error] " + data;
+      else if (ev === "done") {
+        const info = JSON.parse(data);
+        if (info.session_id) sessionId = info.session_id;
+      }
+    }
 
-      const r = await fetch("/chat/stream", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": "Bearer " + token,
-        },
-        body: JSON.stringify({ message: document.getElementById("message").value }),
-      });
-
-      const reader = r.body.getReader();
+    async function readStream(response) {
+      const reader = response.body.getReader();
       const decoder = new TextDecoder();
       let buf = "";
-
       while (true) {
         const { value, done } = await reader.read();
         if (done) break;
         buf += decoder.decode(value, { stream: true });
-
         let idx;
         while ((idx = buf.indexOf("\n\n")) !== -1) {
           const raw = buf.slice(0, idx);
           buf = buf.slice(idx + 2);
-
           let ev = "message", data = "";
           for (const line of raw.split("\n")) {
             if (line.startsWith("event:")) ev = line.slice(6).trim();
             else if (line.startsWith("data:")) data += line.slice(5).trim();
           }
-
-          if (ev === "token") output.textContent += JSON.parse(data).text;
-          else if (ev === "done") output.textContent += "\n\n[done] " + data;
-          else if (ev === "error") output.textContent += "\n[error] " + data;
+          handleEvent(ev, data);
         }
       }
+    }
+
+    async function send() {
+      const status = document.getElementById("status");
+      if (!token) { status.textContent = "请先登录"; return; }
+      document.getElementById("output").textContent = "";
+      document.getElementById("choices").innerHTML = "";
+      const r = await fetch("/chat/stream", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Authorization": "Bearer " + token },
+        body: JSON.stringify({ message: document.getElementById("message").value }),
+      });
+      await readStream(r);
+    }
+
+    function renderChoices(payload) {
+      const box = document.getElementById("choices");
+      box.innerHTML = "";
+      if (payload.type !== "select_order") return;
+      for (const order of payload.orders) {
+        const btn = document.createElement("button");
+        btn.className = "choice";
+        btn.textContent = order.title;
+        btn.onclick = () => resume(order.id);
+        box.appendChild(btn);
+      }
+    }
+
+    async function resume(orderId) {
+      document.getElementById("choices").innerHTML = "";
+      document.getElementById("output").textContent += "\n（已选择订单，处理中…）\n";
+      const r = await fetch("/chat/resume", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Authorization": "Bearer " + token },
+        body: JSON.stringify({ session_id: sessionId, order_id: orderId }),
+      });
+      await readStream(r);
     }
   </script>
 </body>

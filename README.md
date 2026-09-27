@@ -36,7 +36,7 @@ MewHelp 是一条「用户消息进 → 回答出」的消息流水线：
 - [x] P1 服务层：FastAPI 分层 + JWT 认证 + 订单接口 + SSE 骨架
 - [x] P2 检索层：混合检索 + RRF + 重排 + 评测
 - [x] P3 编排层：LangGraph 状态图（意图分流 + 工具调用）
-- [ ] P4 稳健性：置信度闸门 + 转人工 + 上下文档 + 中断恢复
+- [x] P4 稳健性：置信度闸门 + 转人工 + 双层上下文 + 中断恢复
 - [ ] P5 可观测：Langfuse + 链路可视化
 - [ ] P6 数据飞轮：问题池 + 运营工作台
 - [ ] P7 微调 + 前端 + 打磨
@@ -81,7 +81,8 @@ uv run uvicorn app.main:app --reload
 | GET | `/users/me` | 当前登录用户 | 是 |
 | GET | `/orders` | 当前用户的订单列表 | 是 |
 | GET | `/orders/{id}` | 订单详情（归属校验，非本人 403） | 是 |
-| POST | `/chat/stream` | SSE 流式对话（P1 为骨架回复） | 是 |
+| POST | `/chat/stream` | SSE 流式对话（意图分流 + RAG/Agent） | 是 |
+| POST | `/chat/resume` | 中断后带选中的订单继续 | 是 |
 
 ### SSE 调用示例
 
@@ -140,6 +141,13 @@ uv run python scripts/eval_retrieval.py # 评测（需配置 EMBEDDING_API_KEY�
 ```powershell
 uv run python scripts/chat_demo.py
 ```
+
+## 稳健性
+
+- **置信度闸门**：生成前先判证据够不够——重排分低于阈值时，再让 LLM 自评；不够就拒答/转人工，不硬编。
+- **转人工**：答不准的问题连同检索快照写入 `question_pool`（数据飞轮入口），并给用户"已转人工"话术。
+- **双层上下文**：近 6 轮保原文，更早的滚动压缩进 `chat_sessions.summary`，长对话不丢信息也不爆 token。
+- **中断恢复**：售后流程若用户名下多笔订单，图会 `interrupt` 暂停并返回 `need_order_selection`；前端选单后调 `/chat/resume` 从断点继续。状态用 Redis checkpointer 持久化（需 redis-stack，带 RediSearch 模块）。
 
 ## 目录结构
 
