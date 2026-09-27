@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MewHelp 运营工作台</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 900px; margin: 40px auto; padding: 0 16px; }
+    h1 { font-size: 20px; }
+    .card { border: 1px solid #e5e7eb; border-radius: 8px; padding: 14px; margin: 12px 0; }
+    .meta { color: #6b7280; font-size: 13px; margin-bottom: 6px; }
+    .q { font-weight: 600; margin-bottom: 8px; }
+    textarea { width: 100%; min-height: 60px; padding: 8px; border: 1px solid #ccc; border-radius: 6px; }
+    button { padding: 6px 12px; border: 0; border-radius: 6px; color: #fff; cursor: pointer; margin-right: 8px; }
+    .ok { background: #059669; }
+    .no { background: #dc2626; }
+    .snapshot { background: #f6f8fa; border-radius: 6px; padding: 8px; font-size: 12px; color: #374151; white-space: pre-wrap; margin-top: 8px; }
+    .row { display: flex; justify-content: space-between; align-items: center; }
+  </style>
+</head>
+<body>
+  <h1>运营工作台 · 问题池</h1>
+  <p class="meta">按被问频次排序。点「通过」会把答案回写知识库，下次用户就能问到。</p>
+  <div class="row">
+    <button onclick="load()">刷新</button>
+    <label class="meta">状态：
+      <select id="status" onchange="load()">
+        <option value="pending">待审</option>
+        <option value="approved">已通过</option>
+        <option value="rejected">已拒绝</option>
+      </select>
+    </label>
+  </div>
+  <div id="list"></div>
+
+  <script>
+    async function load() {
+      const status = document.getElementById("status").value;
+      const r = await fetch("/ops/questions?status=" + status);
+      const items = await r.json();
+      const box = document.getElementById("list");
+      box.innerHTML = "";
+      if (!items.length) { box.innerHTML = "<p class='meta'>暂无记录</p>"; return; }
+      for (const it of items) {
+        const card = document.createElement("div");
+        card.className = "card";
+        const snap = it.retrieval_snapshot && it.retrieval_snapshot.reason
+          ? "转人工原因：" + it.retrieval_snapshot.reason : "";
+        card.innerHTML =
+          "<div class='meta'>#" + it.id + " · 入口 " + it.entry + " · 意图 " + (it.intent || "-")
+          + " · 频次 " + it.freq + " · " + it.status + "</div>"
+          + "<div class='q'>" + it.query + "</div>"
+          + (snap ? "<div class='snapshot'>" + snap + "</div>" : "");
+        if (it.status === "pending") {
+          const ta = document.createElement("textarea");
+          ta.placeholder = "人工补充答案…";
+          const ok = document.createElement("button");
+          ok.className = "ok"; ok.textContent = "通过并入库";
+          ok.onclick = () => approve(it.id, ta.value);
+          const no = document.createElement("button");
+          no.className = "no"; no.textContent = "拒绝";
+          no.onclick = () => reject(it.id);
+          card.appendChild(ta);
+          card.appendChild(ok);
+          card.appendChild(no);
+        }
+        box.appendChild(card);
+      }
+    }
+
+    async function approve(id, answer) {
+      if (!answer.trim()) { alert("先填答案"); return; }
+      await fetch("/ops/questions/" + id + "/approve", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ answer: answer, reviewer: "ops" }),
+      });
+      load();
+    }
+
+    async function reject(id) {
+      await fetch("/ops/questions/" + id + "/reject", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reviewer: "ops" }),
+      });
+      load();
+    }
+
+    load();
+  </script>
+</body>
+</html>

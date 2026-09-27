@@ -12,7 +12,7 @@ from app.core.exceptions import (
     app_exception_handler,
     unhandled_exception_handler,
 )
-from app.routers import chat, feedback, orders, trace, users
+from app.routers import chat, feedback, ops, orders, trace, users
 
 logging.basicConfig(
     level=logging.INFO,
@@ -44,6 +44,7 @@ app.include_router(orders.router)
 app.include_router(chat.router)
 app.include_router(trace.router)
 app.include_router(feedback.router)
+app.include_router(ops.router)
 
 # 静态页面（极简聊天页，用于直观验证 SSE）
 app.mount("/static", StaticFiles(directory="static"), name="static")
