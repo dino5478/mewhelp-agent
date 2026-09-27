@@ -38,7 +38,7 @@ MewHelp 是一条「用户消息进 → 回答出」的消息流水线：
 - [x] P3 编排层：LangGraph 状态图（意图分流 + 工具调用）
 - [x] P4 稳健性：置信度闸门 + 转人工 + 双层上下文 + 中断恢复
 - [x] P5 可观测：Langfuse + 链路可视化
-- [ ] P6 数据飞轮：问题池 + 运营工作台
+- [x] P6 数据飞轮：问题池 + 运营工作台
 - [ ] P7 微调 + 前端 + 打磨
 
 > 详细设计与里程碑见 `docs/`（规划中）。
@@ -85,6 +85,10 @@ uv run uvicorn app.main:app --reload
 | POST | `/chat/resume` | 中断后带选中的订单继续 | 是 |
 | GET | `/trace/recent` | 最近的调用链概览 | 否 |
 | GET | `/trace/{id}` | 某条调用链的节点耗时明细 | 否 |
+| POST | `/feedback` | 点赞/点踩（点踩入问题池） | 是 |
+| GET | `/ops/questions` | 问题池列表（按频次排序） | 否 |
+| POST | `/ops/questions/{id}/approve` | 审核通过并回写知识库 | 否 |
+| POST | `/ops/questions/{id}/reject` | 拒绝 | 否 |
 
 ### SSE 调用示例
 
@@ -157,6 +161,18 @@ uv run python scripts/chat_demo.py
 
 - 页面：`/static/trace.html`（也可直接调 `GET /trace/recent`、`GET /trace/{request_id}`）
 - 云端：配置 `LANGFUSE_*` 后，会通过回调把 prompt/耗时/调用树上报 Langfuse（不配则自动降级为本地模式）
+
+## 数据飞轮
+
+答不准的问题不会白丢，三个入口沉淀进 `question_pool`（同问题按频次合并）：
+
+- 检索证据弱被拒答、生成前自评未通过（转人工时自动记录）；
+- 用户点踩（`POST /feedback`）。
+
+运营在工作台按频次审核，**通过后把"问题+答案"作为新文档回写知识库**（切块+向量化+入 Milvus），下次用户就能问到。
+
+- 工作台页面：`/static/ops.html`
+- 接口：`GET /ops/questions`、`POST /ops/questions/{id}/approve`、`POST /ops/questions/{id}/reject`
 
 ## 目录结构
 
