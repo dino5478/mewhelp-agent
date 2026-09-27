@@ -14,6 +14,7 @@ class GraphState(TypedDict, total=False):
     summary: str               # 更早对话的滚动摘要
     user_id: int
     session_id: int
+    request_id: str            # 本次请求的链路 id（可观测用）
     standalone_query: str      # 补全后的独立问题
     intent: str
     route: str                 # faq / order / aftersale / agent
