@@ -17,4 +17,9 @@ class GraphState(TypedDict, total=False):
     intent: str
     route: str                 # faq / order / aftersale / agent
     context: str               # RAG 检索拼出的参考资料
+    retrieved: list[dict]      # 检索到的片段（存快照，转人工/排查要用）
+    top_score: float           # 最高重排分
+    confident: bool            # 置信度闸门结论
+    confidence_reason: str
+    need_human: bool
     answer: str

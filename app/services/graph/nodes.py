@@ -5,7 +5,8 @@
 
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 
-from app.services import intent, llm, retrieval
+from app.core.config import settings
+from app.services import confidence, intent, llm, retrieval
 from app.services.graph.state import GraphState
 
 _RAG_PROMPT = """你是电商平台的客服。请只根据下面提供的资料回答，资料里没有的就说\
@@ -28,18 +29,41 @@ def preprocess_node(state: GraphState) -> dict:
     }
 
 
-def rag_node(state: GraphState) -> dict:
-    """知识问答：先检索，再让模型基于资料回答。"""
-    chunks = retrieval.hybrid_search(state["standalone_query"])
-    if not chunks:
-        return {"answer": "这个我需要帮你转人工确认。"}
+def retrieve_node(state: GraphState) -> dict:
+    """只负责检索，把资料和最高分放进 state，判证交给下一个节点。"""
+    chunks = retrieval.hybrid_search(state["standalone_query"], top_k=settings.RAG_TOP_K)
     context = "\n\n".join(f"[{c.heading_path}] {c.text}" for c in chunks)
+    retrieved = [
+        {"id": c.id, "heading_path": c.heading_path, "text": c.text, "score": c.score}
+        for c in chunks
+    ]
+    top_score = chunks[0].score if chunks else 0.0
+    return {"context": context, "retrieved": retrieved, "top_score": top_score}
+
+
+def confidence_node(state: GraphState) -> dict:
+    confident, reason = confidence.judge(
+        state["standalone_query"], state.get("context", ""), state.get("top_score", 0.0)
+    )
+    return {"confident": confident, "confidence_reason": reason}
+
+
+def generate_node(state: GraphState) -> dict:
+    """证据够了，基于资料生成回答。"""
     answer = llm.chat([
         SystemMessage(content=_RAG_PROMPT.format(
-            context=context, question=state["standalone_query"]
+            context=state.get("context", ""), question=state["standalone_query"]
         ))
     ])
-    return {"answer": answer, "context": context}
+    return {"answer": answer}
+
+
+def handoff_node(state: GraphState) -> dict:
+    """证据不够，转人工（问题池落库在 P4.2 接上）。"""
+    return {
+        "answer": "这个问题我不太确定，已经帮你转人工客服，请稍等一下。",
+        "need_human": True,
+    }
 
 
 def make_agent_node(llm_with_tools):

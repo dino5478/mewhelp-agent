@@ -6,10 +6,19 @@ from app.services.graph import build, nodes
 from app.services.retrieval import RetrievedChunk
 
 
+def _chunk() -> RetrievedChunk:
+    return RetrievedChunk(id="1-0", text="满99包邮", heading_path="运费", doc_id=1,
+                          source="a.md", score=0.9)
+
+
 def test_route_after_preprocess() -> None:
-    assert build._route_after_preprocess({"route": "faq"}) == "rag"
+    assert build._route_after_preprocess({"route": "faq"}) == "retrieve"
     assert build._route_after_preprocess({"route": "order"}) == "agent"
-    assert build._route_after_preprocess({"route": "aftersale"}) == "agent"
+
+
+def test_route_after_confidence() -> None:
+    assert build._route_after_confidence({"confident": True}) == "generate"
+    assert build._route_after_confidence({"confident": False}) == "handoff"
 
 
 def test_agent_should_continue() -> None:
@@ -32,25 +41,30 @@ def test_preprocess_node(monkeypatch) -> None:
     assert out["messages"][0].content == "运费是多少"
 
 
-def test_rag_node_with_context(monkeypatch) -> None:
-    fake = [RetrievedChunk(id="1-0", text="满99包邮", heading_path="运费", doc_id=1,
-                           source="a.md", score=1.0)]
-    monkeypatch.setattr(nodes.retrieval, "hybrid_search", lambda q, **k: fake)
+def test_retrieve_node(monkeypatch) -> None:
+    monkeypatch.setattr(nodes.retrieval, "hybrid_search", lambda q, **k: [_chunk()])
+    out = nodes.retrieve_node({"standalone_query": "运费"})
+    assert "满99包邮" in out["context"]
+    assert out["top_score"] == 0.9
+    assert out["retrieved"][0]["id"] == "1-0"
+
+
+def test_confidence_node(monkeypatch) -> None:
+    monkeypatch.setattr(nodes.confidence, "judge", lambda q, c, s: (False, "self_eval_no"))
+    out = nodes.confidence_node({"standalone_query": "x", "context": "y", "top_score": 0.1})
+    assert out["confident"] is False
+    assert out["confidence_reason"] == "self_eval_no"
+
+
+def test_generate_node(monkeypatch) -> None:
     monkeypatch.setattr(nodes.llm, "chat", lambda messages, temperature=0.0: "满 99 元包邮。")
-    out = nodes.rag_node({"standalone_query": "运费多少"})
+    out = nodes.generate_node({"standalone_query": "运费", "context": "满99包邮"})
     assert out["answer"] == "满 99 元包邮。"
 
 
-def test_rag_node_no_hit() -> None:
-    # 用空的检索结果直接调，触发兜底话术
-    import app.services.graph.nodes as n
-
-    original = n.retrieval.hybrid_search
-    n.retrieval.hybrid_search = lambda q, **k: []
-    try:
-        out = nodes.rag_node({"standalone_query": "没收录的问题"})
-    finally:
-        n.retrieval.hybrid_search = original
+def test_handoff_node() -> None:
+    out = nodes.handoff_node({"standalone_query": "答不上来的问题"})
+    assert out["need_human"] is True
     assert "转人工" in out["answer"]
 
 

@@ -50,6 +50,9 @@ class Settings(BaseSettings):
     RAG_RECALL_TOP_N: int = 20
     RAG_CHUNK_SIZE: int = 500
     RAG_CHUNK_OVERLAP: int = 80
+    # 置信度闸门：重排分高于阈值直接放行，低于则交给 LLM 自评
+    CONFIDENCE_SCORE_THRESHOLD: float = 0.3
+    CONFIDENCE_SELF_EVAL: bool = True
 
 
 settings = Settings()
