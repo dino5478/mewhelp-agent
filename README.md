@@ -35,7 +35,7 @@ MewHelp 是一条「用户消息进 → 回答出」的消息流水线：
 - [x] P0 脚手架：环境编排 + 建表 + 种子数据
 - [x] P1 服务层：FastAPI 分层 + JWT 认证 + 订单接口 + SSE 骨架
 - [x] P2 检索层：混合检索 + RRF + 重排 + 评测
-- [ ] P3 编排层：LangGraph 状态图（意图分流 + 工具调用）
+- [x] P3 编排层：LangGraph 状态图（意图分流 + 工具调用）
 - [ ] P4 稳健性：置信度闸门 + 转人工 + 上下文档 + 中断恢复
 - [ ] P5 可观测：Langfuse + 链路可视化
 - [ ] P6 数据飞轮：问题池 + 运营工作台
@@ -117,6 +117,28 @@ curl.exe -N -X POST "http://127.0.0.1:8000/chat/stream" `
 docker compose up -d                    # 起 MySQL/Redis/Milvus 栈
 uv run python scripts/build_index.py    # 建库
 uv run python scripts/eval_retrieval.py # 评测（需配置 EMBEDDING_API_KEY）
+```
+
+## 对话编排
+
+一条消息的路径（LangGraph 状态图）：
+
+```
+用户消息
+  → 指代消解 + 意图识别（9 类）
+  → 分流：规则类走 RAG ｜ 订单/售后/闲聊走 Agent
+  → RAG：混合检索 → 基于资料生成
+  → Agent：ReAct 循环（可调 search_knowledge_base / get_order / get_logistics）
+  → 逐 token SSE 返回
+```
+
+- 订单类工具**做归属校验**，只能查自己的订单。
+- 意图出口映射：运费/商品/支付/发票 → RAG；订单/物流 → 订单工具；退换货/售后 → 售后工具；其它 → 通用 Agent。
+
+命令行体验：
+
+```powershell
+uv run python scripts/chat_demo.py
 ```
 
 ## 目录结构
